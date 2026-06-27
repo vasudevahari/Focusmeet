@@ -1,0 +1,67 @@
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider  = "postgresql"
+  url       = env("DATABASE_URL")
+  directUrl = env("DIRECT_URL")
+}
+
+model Room {
+  id        String    @id @default(uuid())
+  roomCode  String    @unique
+  name      String
+  hostId    String
+  hostName  String
+  isActive  Boolean   @default(true)
+  createdAt DateTime  @default(now())
+  meetings  Meeting[]
+}
+
+model Meeting {
+  id           String        @id @default(uuid())
+  roomId       String
+  room         Room          @relation(fields: [roomId], references: [id])
+  startedAt    DateTime      @default(now())
+  endedAt      DateTime?
+  participants Participant[]
+  messages     Message[]
+  focusLogs    FocusLog[]
+}
+
+model Participant {
+  id              String     @id @default(uuid())
+  meetingId       String
+  meeting         Meeting    @relation(fields: [meetingId], references: [id])
+  userId          String
+  displayName     String
+  joinedAt        DateTime   @default(now())
+  leftAt          DateTime?
+  avgFocusScore   Float      @default(0)
+  focusedSeconds  Int        @default(0)
+  distractedSecs  Int        @default(0)
+  alertCount      Int        @default(0)
+  focusLogs       FocusLog[]
+}
+
+model FocusLog {
+  id            String      @id @default(uuid())
+  meetingId     String
+  meeting       Meeting     @relation(fields: [meetingId], references: [id])
+  participantId String
+  participant   Participant @relation(fields: [participantId], references: [id])
+  score         Float
+  eventType     String?     // "looking_away" | "face_absent" | "eyes_closed" | null
+  recordedAt    DateTime    @default(now())
+}
+
+model Message {
+  id        String   @id @default(uuid())
+  meetingId String
+  meeting   Meeting  @relation(fields: [meetingId], references: [id])
+  userId    String
+  userName  String
+  content   String
+  sentAt    DateTime @default(now())
+}
