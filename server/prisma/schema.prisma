@@ -9,59 +9,68 @@ datasource db {
 }
 
 model Room {
-  id        String    @id @default(uuid())
+  id        String    @id @default(dbgenerated("(gen_random_uuid())::text"))
   roomCode  String    @unique
   name      String
   hostId    String
   hostName  String
   isActive  Boolean   @default(true)
-  createdAt DateTime  @default(now())
+  createdAt DateTime  @default(now()) @db.Timestamptz(6)
   meetings  Meeting[]
 }
 
 model Meeting {
-  id           String        @id @default(uuid())
+  id           String        @id @default(dbgenerated("(gen_random_uuid())::text"))
   roomId       String
-  room         Room          @relation(fields: [roomId], references: [id])
-  startedAt    DateTime      @default(now())
-  endedAt      DateTime?
-  participants Participant[]
-  messages     Message[]
+  startedAt    DateTime      @default(now()) @db.Timestamptz(6)
+  endedAt      DateTime?     @db.Timestamptz(6)
   focusLogs    FocusLog[]
+  room         Room          @relation(fields: [roomId], references: [id], onDelete: NoAction, onUpdate: NoAction)
+  messages     Message[]
+  participants Participant[]
+
+  @@index([roomId], map: "idx_meeting_room")
 }
 
 model Participant {
-  id              String     @id @default(uuid())
-  meetingId       String
-  meeting         Meeting    @relation(fields: [meetingId], references: [id])
-  userId          String
-  displayName     String
-  joinedAt        DateTime   @default(now())
-  leftAt          DateTime?
-  avgFocusScore   Float      @default(0)
-  focusedSeconds  Int        @default(0)
-  distractedSecs  Int        @default(0)
-  alertCount      Int        @default(0)
-  focusLogs       FocusLog[]
+  id             String     @id @default(dbgenerated("(gen_random_uuid())::text"))
+  meetingId      String
+  userId         String
+  displayName    String
+  joinedAt       DateTime   @default(now()) @db.Timestamptz(6)
+  leftAt         DateTime?  @db.Timestamptz(6)
+  avgFocusScore  Float      @default(0)
+  focusedSeconds Int        @default(0)
+  distractedSecs Int        @default(0)
+  alertCount     Int        @default(0)
+  focusLogs      FocusLog[]
+  meeting        Meeting    @relation(fields: [meetingId], references: [id], onDelete: NoAction, onUpdate: NoAction)
+
+  @@index([meetingId], map: "idx_participant_meeting")
 }
 
 model FocusLog {
-  id            String      @id @default(uuid())
+  id            String      @id @default(dbgenerated("(gen_random_uuid())::text"))
   meetingId     String
-  meeting       Meeting     @relation(fields: [meetingId], references: [id])
   participantId String
-  participant   Participant @relation(fields: [participantId], references: [id])
   score         Float
-  eventType     String?     // "looking_away" | "face_absent" | "eyes_closed" | null
-  recordedAt    DateTime    @default(now())
+  eventType     String?
+  recordedAt    DateTime    @default(now()) @db.Timestamptz(6)
+  meeting       Meeting     @relation(fields: [meetingId], references: [id], onDelete: NoAction, onUpdate: NoAction)
+  participant   Participant @relation(fields: [participantId], references: [id], onDelete: NoAction, onUpdate: NoAction)
+
+  @@index([meetingId], map: "idx_focuslog_meeting")
+  @@index([participantId], map: "idx_focuslog_participant")
 }
 
 model Message {
-  id        String   @id @default(uuid())
+  id        String   @id @default(dbgenerated("(gen_random_uuid())::text"))
   meetingId String
-  meeting   Meeting  @relation(fields: [meetingId], references: [id])
   userId    String
   userName  String
   content   String
-  sentAt    DateTime @default(now())
+  sentAt    DateTime @default(now()) @db.Timestamptz(6)
+  meeting   Meeting  @relation(fields: [meetingId], references: [id], onDelete: NoAction, onUpdate: NoAction)
+
+  @@index([meetingId], map: "idx_message_meeting")
 }

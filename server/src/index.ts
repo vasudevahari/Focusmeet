@@ -10,6 +10,7 @@ import analyticsRoutes from "./routes/analytics";
 import { initSocket } from "./socket";
 
 const app = express();
+app.set("trust proxy", 1);
 const httpServer = createServer(app);
 
 const CLIENT_URL = process.env.CLIENT_URL || "http://localhost:3000";
