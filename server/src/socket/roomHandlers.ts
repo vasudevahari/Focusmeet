@@ -127,12 +127,41 @@ export function registerRoomHandlers(io: Server, socket: Socket) {
     io.to(ctx.roomCode).emit("media:toggled", { userId: ctx.userId, type, enabled: Boolean(enabled) });
   });
 
+  // ── track state change ─────────────────────────────────────
+  socket.on("track:state-change", ({ trackType, enabled }: { trackType: 'audio' | 'video'; enabled: boolean }) => {
+    const ctx = getSocketParticipant(socket);
+    if (!ctx) return;
+    const participants = rooms.get(ctx.roomCode);
+    if (!participants) return;
+    const p = participants.get(ctx.userId);
+    if (!p) return;
+
+    if (trackType === 'audio') {
+      p.audioEnabled = enabled;
+    } else if (trackType === 'video') {
+      p.videoEnabled = enabled;
+    }
+
+    io.to(ctx.roomCode).emit("participant:track-change", {
+      userId: ctx.userId,
+      trackType,
+      enabled,
+    });
+  });
+
   // ── screen:start ──────────────────────────────────────────────
   socket.on("screen:start", () => {
     const ctx = getSocketParticipant(socket);
     if (!ctx) return;
     const p = rooms.get(ctx.roomCode)?.get(ctx.userId);
-    if (p) { p.isScreenSharing = true; io.to(ctx.roomCode).emit("screen:started", { userId: ctx.userId }); }
+    if (p) {
+      p.isScreenSharing = true;
+      io.to(ctx.roomCode).emit("screen:started", {
+        userId: ctx.userId,
+        displayName: p.displayName,
+        timestamp: new Date().toISOString(),
+      });
+    }
   });
 
   // ── screen:stop ───────────────────────────────────────────────
@@ -140,7 +169,13 @@ export function registerRoomHandlers(io: Server, socket: Socket) {
     const ctx = getSocketParticipant(socket);
     if (!ctx) return;
     const p = rooms.get(ctx.roomCode)?.get(ctx.userId);
-    if (p) { p.isScreenSharing = false; io.to(ctx.roomCode).emit("screen:stopped", { userId: ctx.userId }); }
+    if (p) {
+      p.isScreenSharing = false;
+      io.to(ctx.roomCode).emit("screen:stopped", {
+        userId: ctx.userId,
+        timestamp: new Date().toISOString(),
+      });
+    }
   });
 
   // ── focus:update (rate-limited to 4/s per socket) ─────────────

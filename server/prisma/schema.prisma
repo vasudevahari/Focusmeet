@@ -64,13 +64,15 @@ model FocusLog {
 }
 
 model Message {
-  id        String   @id @default(dbgenerated("(gen_random_uuid())::text"))
-  meetingId String
-  userId    String
-  userName  String
-  content   String
-  sentAt    DateTime @default(now()) @db.Timestamptz(6)
-  meeting   Meeting  @relation(fields: [meetingId], references: [id], onDelete: NoAction, onUpdate: NoAction)
+  id          String   @id @default(dbgenerated("(gen_random_uuid())::text"))
+  meetingId   String
+  userId      String
+  userName    String
+  content     String
+  recipientId String?
+  sentAt      DateTime @default(now()) @db.Timestamptz(6)
+  meeting     Meeting  @relation(fields: [meetingId], references: [id], onDelete: NoAction, onUpdate: NoAction)
 
   @@index([meetingId], map: "idx_message_meeting")
+  @@index([recipientId])
 }

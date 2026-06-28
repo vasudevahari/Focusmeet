@@ -223,6 +223,10 @@ export function useRoom(roomCode: string, onFocusEvent?: (data: any) => void) {
     getSocket().emit("media:toggle", { type: "audio", enabled });
   }, [audioEnabled]);
 
+  const notifyTrackStateChange = useCallback((trackType: 'audio' | 'video', enabled: boolean) => {
+    getSocket().emit("track:state-change", { trackType, enabled });
+  }, []);
+
   const toggleVideo = useCallback(async () => {
     if (!localStreamRef.current) return;
     const tracks = localStreamRef.current.getVideoTracks();
@@ -243,8 +247,8 @@ export function useRoom(roomCode: string, onFocusEvent?: (data: any) => void) {
     tracks[0].enabled = !wasEnabled;
     setVideoEnabled(!wasEnabled);
     // Notify peers
-    webrtcRef.current?.notifyTrackStateChange('video', !wasEnabled);
-  }, []);
+    notifyTrackStateChange('video', !wasEnabled);
+  }, [notifyTrackStateChange]);
 
   const startScreenShare = useCallback(async () => {
     try {
@@ -269,6 +273,8 @@ export function useRoom(roomCode: string, onFocusEvent?: (data: any) => void) {
       screenStreamRef.current = stream;
       setScreenStream(stream);
       setIsScreenSharing(true);
+      // Notify peers that screen share started
+      getSocket().emit("screen:start");
       webrtcRef.current?.addScreenShare(stream);
 
       // Handle user clicking "Stop" in browser
@@ -287,6 +293,9 @@ export function useRoom(roomCode: string, onFocusEvent?: (data: any) => void) {
   const stopScreenShare = useCallback(() => {
     if (!screenStreamRef.current) return;
     
+    // Notify peers that screen share stopped
+    getSocket().emit("screen:stop");
+
     try {
       screenStreamRef.current.getTracks().forEach((t) => {
         t.stop();

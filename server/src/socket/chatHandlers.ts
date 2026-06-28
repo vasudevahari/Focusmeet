@@ -10,12 +10,14 @@ export function registerChatHandlers(io: Server, socket: Socket) {
       userName,
       content,
       meetingId,
+      recipientId,
     }: {
       roomCode: string;
       userId: string;
       userName: string;
       content: string;
       meetingId: string;
+      recipientId?: string;
     }) => {
       if (!content?.trim()) return;
 
@@ -24,6 +26,7 @@ export function registerChatHandlers(io: Server, socket: Socket) {
         userId,
         userName,
         content: content.trim(),
+        recipientId: recipientId || undefined,
         sentAt: new Date().toISOString(),
       };
 
@@ -36,11 +39,19 @@ export function registerChatHandlers(io: Server, socket: Socket) {
             userId,
             userName,
             content: message.content,
+            recipientId: recipientId || null,
           },
         });
       } catch (_) {}
 
-      io.to(roomCode).emit("chat:message", message);
+      // Route message
+      if (recipientId) {
+        // Private message: send only to recipient + sender
+        io.to(roomCode).emit("chat:message:private", message);
+      } else {
+        // Room message: broadcast to all in room
+        io.to(roomCode).emit("chat:message", message);
+      }
     }
   );
 }
