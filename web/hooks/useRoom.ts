@@ -223,37 +223,90 @@ export function useRoom(roomCode: string, onFocusEvent?: (data: any) => void) {
     getSocket().emit("media:toggle", { type: "audio", enabled });
   }, [audioEnabled]);
 
-  const toggleVideo = useCallback(() => {
-    const stream = localStreamRef.current;
-    if (!stream || !sessionRef.current) return;
-    const enabled = !videoEnabled;
-    stream.getVideoTracks().forEach((t) => (t.enabled = enabled));
-    setVideoEnabled(enabled);
-    getSocket().emit("media:toggle", { type: "video", enabled });
-  }, [videoEnabled]);
+  const toggleVideo = useCallback(async () => {
+    if (!localStreamRef.current) return;
+    const tracks = localStreamRef.current.getVideoTracks();
+    if (tracks.length === 0) {
+      // No video track, try to get one
+      try {
+        const stream = await navigator.mediaDevices.getUserMedia({ video: true });
+        stream.getVideoTracks().forEach(t => {
+          localStreamRef.current!.addTrack(t);
+        });
+        setVideoEnabled(true);
+      } catch (err) {
+        console.error("Failed to enable video:", err);
+      }
+      return;
+    }
+    const wasEnabled = tracks[0].enabled;
+    tracks[0].enabled = !wasEnabled;
+    setVideoEnabled(!wasEnabled);
+    // Notify peers
+    webrtcRef.current?.notifyTrackStateChange('video', !wasEnabled);
+  }, []);
 
   const startScreenShare = useCallback(async () => {
     try {
-      const stream = await navigator.mediaDevices.getDisplayMedia({ video: true, audio: true });
+      // Stop existing screen share first
+      if (screenStreamRef.current) {
+        screenStreamRef.current.getTracks().forEach(t => t.stop());
+      }
+
+      const stream = await navigator.mediaDevices.getDisplayMedia({
+        video: {
+          cursor: "always",
+          displaySurface: "monitor",
+        } as any,
+        audio: false,
+      });
+
+      if (!mountedRef.current) {
+        stream.getTracks().forEach(t => t.stop());
+        return;
+      }
+
       screenStreamRef.current = stream;
       setScreenStream(stream);
       setIsScreenSharing(true);
-      const videoTrack = stream.getVideoTracks()[0];
-      webrtcRef.current?.replaceTrack(videoTrack);
-      getSocket().emit("screen:start");
-      videoTrack.onended = () => stopScreenShare();
-    } catch (_) {}
-    // eslint-disable-next-line react-hooks/exhaustive-deps
+      webrtcRef.current?.addScreenShare(stream);
+
+      // Handle user clicking "Stop" in browser
+      stream.getTracks()[0].addEventListener('ended', () => {
+        if (mountedRef.current) {
+          stopScreenShare();
+        }
+      });
+    } catch (err) {
+      if ((err as any).name !== 'NotAllowedError') {
+        console.error("Screen share failed:", err);
+      }
+    }
   }, []);
 
   const stopScreenShare = useCallback(() => {
-    screenStreamRef.current?.getTracks().forEach((t) => t.stop());
+    if (!screenStreamRef.current) return;
+    
+    try {
+      screenStreamRef.current.getTracks().forEach((t) => {
+        t.stop();
+      });
+    } catch (err) {
+      console.error("Error stopping screen share:", err);
+    }
+
     screenStreamRef.current = null;
     setScreenStream(null);
     setIsScreenSharing(false);
-    const camTrack = localStreamRef.current?.getVideoTracks()[0];
-    if (camTrack) webrtcRef.current?.replaceTrack(camTrack);
-    getSocket().emit("screen:stop");
+    webrtcRef.current?.removeScreenShare();
+
+    // Restore camera feed
+    if (localStreamRef.current) {
+      const videoTracks = localStreamRef.current.getVideoTracks();
+      if (videoTracks.length > 0) {
+        videoTracks[0].enabled = true;
+      }
+    }
   }, []);
 
   const sendMessage = useCallback((content: string) => {

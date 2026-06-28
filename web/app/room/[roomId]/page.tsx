@@ -5,12 +5,14 @@ import { useRouter, useParams } from "next/navigation";
 import { motion, AnimatePresence } from "framer-motion";
 import { useRoom } from "@/hooks/useRoom";
 import { useFocusMonitor } from "@/hooks/useFocusMonitor";
-import VideoGrid from "@/components/room/VideoGrid";
-import ControlBar from "@/components/room/ControlBar";
-import ChatPanel from "@/components/room/ChatPanel";
-import ParticipantList from "@/components/room/ParticipantList";
-import FocusAIWorker from "@/components/room/FocusAIWorker";
-import HostFocusDashboard from "@/components/room/HostFocusDashboard";
+import dynamic from "next/dynamic";
+
+const VideoGrid = dynamic(() => import("@/components/room/VideoGrid"), { ssr: false });
+const ControlBar = dynamic(() => import("@/components/room/ControlBar"), { ssr: false });
+const ChatPanel = dynamic(() => import("@/components/room/ChatPanel"), { ssr: false });
+const ParticipantList = dynamic(() => import("@/components/room/ParticipantList"), { ssr: false });
+const FocusAIWorker = dynamic(() => import("@/components/room/FocusAIWorker"), { ssr: false, loading: () => null });
+const HostFocusDashboard = dynamic(() => import("@/components/room/HostFocusDashboard"), { ssr: false });
 import FocusNotification from "@/components/room/FocusNotification";
 import ThemeToggle from "@/components/ThemeToggle";
 import { endRoom } from "@/lib/api";
@@ -230,6 +232,7 @@ export default function RoomPage() {
               <ChatPanel
                 messages={messages}
                 myUserId={session.userId}
+                participants={participants}
                 onSend={sendMessage}
                 onClose={() => setPanel(null)}
               />

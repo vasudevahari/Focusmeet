@@ -201,6 +201,26 @@ export class WebRTCManager {
     });
   }
 
+  notifyTrackStateChange(type: "audio" | "video", enabled: boolean) {
+    this.socket.emit("media:toggle", { type, enabled });
+  }
+
+  addScreenShare(stream: MediaStream) {
+    const videoTrack = stream.getVideoTracks()[0];
+    if (videoTrack) {
+      this.replaceTrack(videoTrack);
+    }
+    this.socket.emit("screen:start");
+  }
+
+  removeScreenShare() {
+    const camTrack = this.localStream?.getVideoTracks()[0];
+    if (camTrack) {
+      this.replaceTrack(camTrack);
+    }
+    this.socket.emit("screen:stop");
+  }
+
   disconnect() {
     this.destroyed = true;
     this.peers.forEach((_, id) => this.removePeer(id));

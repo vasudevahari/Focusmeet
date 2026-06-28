@@ -9,6 +9,7 @@ export interface Participant {
   focusScore: number;
   joinedAt: number;
   stream?: MediaStream;
+  isActive?: boolean;
 }
 
 export interface ChatMessage {
@@ -17,6 +18,8 @@ export interface ChatMessage {
   userName: string;
   content: string;
   sentAt: string;
+  senderId?: string;
+  recipientId?: string;
 }
 
 export interface RoomInfo {

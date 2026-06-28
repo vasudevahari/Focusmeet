@@ -2,134 +2,173 @@
 
 import { useState, useRef, useEffect } from "react";
 import { motion, AnimatePresence } from "framer-motion";
-import { ChatMessage } from "@/types";
-import { Send, X } from "lucide-react";
+import { ChatMessage, Participant } from "@/types";
+import { Send, X, MessageSquare, Users } from "lucide-react";
 
 interface ChatPanelProps {
   messages: ChatMessage[];
   myUserId: string;
-  onSend: (content: string) => void;
+  participants: Participant[];
+  onSend: (content: string, recipientId?: string) => void;
   onClose: () => void;
 }
 
-function formatTime(iso: string) {
-  return new Date(iso).toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" });
-}
+type ChatMode = "room" | "private";
 
-export default function ChatPanel({ messages, myUserId, onSend, onClose }: ChatPanelProps) {
+export default function ChatPanel({
+  messages,
+  myUserId,
+  participants,
+  onSend,
+  onClose,
+}: ChatPanelProps) {
   const [input, setInput] = useState("");
-  const bottomRef = useRef<HTMLDivElement>(null);
-  const inputRef = useRef<HTMLTextAreaElement>(null);
+  const [mode, setMode] = useState<ChatMode>("room");
+  const [selectedPrivateUser, setSelectedPrivateUser] = useState<string | null>(null);
+  const messagesEndRef = useRef<HTMLDivElement>(null);
+
+  const scrollToBottom = () => {
+    messagesEndRef.current?.scrollIntoView({ behavior: "smooth" });
+  };
 
   useEffect(() => {
-    bottomRef.current?.scrollIntoView({ behavior: "smooth" });
+    scrollToBottom();
   }, [messages]);
 
-  useEffect(() => {
-    inputRef.current?.focus();
-  }, []);
+  const filteredMessages = messages.filter(m => {
+    if (mode === "room") return !m.recipientId;
+    return (m.recipientId === myUserId || m.senderId === myUserId) &&
+           m.senderId === selectedPrivateUser || m.recipientId === selectedPrivateUser;
+  });
 
-  function handleSend() {
-    const val = input.trim();
-    if (!val) return;
-    onSend(val);
+  const handleSend = () => {
+    if (!input.trim()) return;
+    onSend(input, mode === "private" ? selectedPrivateUser || undefined : undefined);
     setInput("");
-  }
-
-  function handleKey(e: React.KeyboardEvent) {
-    if (e.key === "Enter" && !e.shiftKey) {
-      e.preventDefault();
-      handleSend();
-    }
-  }
+  };
 
   return (
     <motion.div
-      initial={{ opacity: 0, x: 24 }}
-      animate={{ opacity: 1, x: 0 }}
-      exit={{ opacity: 0, x: 24 }}
-      transition={{ duration: 0.3, ease: [0.16, 1, 0.3, 1] }}
-      className="flex flex-col h-full glass-strong border-l border-border"
+      initial={{ x: 300, opacity: 0 }}
+      animate={{ x: 0, opacity: 1 }}
+      exit={{ x: 300, opacity: 0 }}
+      className="h-full w-full flex flex-col bg-secondary/30 border-l border-border"
     >
       {/* Header */}
-      <div className="flex items-center justify-between px-4 py-3.5 border-b border-border flex-shrink-0">
-        <h3 className="font-semibold text-sm tracking-tight">Chat</h3>
-        <motion.button
-          whileTap={{ scale: 0.88 }}
-          onClick={onClose}
-          className="w-7 h-7 flex items-center justify-center rounded-lg hover:bg-secondary transition-colors text-muted-foreground hover:text-foreground"
-        >
-          <X size={14} />
-        </motion.button>
+      <div className="flex-shrink-0 p-3 border-b border-border bg-secondary/50">
+        <div className="flex items-center justify-between mb-3">
+          <h3 className="font-semibold text-sm">{mode === "room" ? "Room Chat" : "Private Chat"}</h3>
+          <button
+            onClick={onClose}
+            className="p-1 hover:bg-primary/20 rounded-md transition-colors"
+          >
+            <X size={16} />
+          </button>
+        </div>
+
+        {/* Mode toggle */}
+        <div className="flex gap-2">
+          <button
+            onClick={() => { setMode("room"); setSelectedPrivateUser(null); }}
+            className={`flex-1 flex items-center justify-center gap-1.5 py-1.5 rounded-md text-xs font-medium transition-all ${
+              mode === "room"
+                ? "bg-primary text-primary-foreground"
+                : "bg-secondary/60 text-muted-foreground hover:text-foreground"
+            }`}
+          >
+            <Users size={12} />
+            Room
+          </button>
+          <button
+            onClick={() => setMode("private")}
+            className={`flex-1 flex items-center justify-center gap-1.5 py-1.5 rounded-md text-xs font-medium transition-all ${
+              mode === "private"
+                ? "bg-primary text-primary-foreground"
+                : "bg-secondary/60 text-muted-foreground hover:text-foreground"
+            }`}
+          >
+            <MessageSquare size={12} />
+            Direct
+          </button>
+        </div>
       </div>
 
-      {/* Messages */}
-      <div className="flex-1 overflow-y-auto p-3 space-y-2 min-h-0">
-        {messages.length === 0 && (
-          <div className="flex flex-col items-center justify-center h-full gap-2 text-center py-12">
-            <div className="w-10 h-10 rounded-2xl bg-secondary flex items-center justify-center">
-              <Send size={16} className="text-muted-foreground" />
-            </div>
-            <p className="text-xs text-muted-foreground font-mono">No messages yet</p>
-          </div>
-        )}
-
-        <AnimatePresence initial={false}>
-          {messages.map((msg) => {
-            const isMe = msg.userId === myUserId;
-            return (
-              <motion.div
-                key={msg.id}
-                initial={{ opacity: 0, y: 8, scale: 0.96 }}
-                animate={{ opacity: 1, y: 0, scale: 1 }}
-                transition={{ duration: 0.25, ease: [0.16, 1, 0.3, 1] }}
-                className={`flex flex-col ${isMe ? "items-end" : "items-start"}`}
+      {/* Private user selector */}
+      {mode === "private" && (
+        <motion.div
+          initial={{ height: 0, opacity: 0 }}
+          animate={{ height: "auto", opacity: 1 }}
+          className="flex-shrink-0 p-3 border-b border-border bg-secondary/20 overflow-x-auto"
+        >
+          <div className="flex gap-2">
+            {participants.filter(p => p.userId !== myUserId).map(p => (
+              <button
+                key={p.userId}
+                onClick={() => setSelectedPrivateUser(p.userId)}
+                className={`px-3 py-1 rounded-full text-xs font-medium whitespace-nowrap transition-all ${
+                  selectedPrivateUser === p.userId
+                    ? "bg-primary text-primary-foreground"
+                    : "bg-secondary/60 text-muted-foreground hover:bg-secondary/80"
+                }`}
               >
-                {!isMe && (
-                  <span className="text-2xs text-muted-foreground font-mono mb-1 px-1">
-                    {msg.userName}
-                  </span>
+                {p.displayName}
+              </button>
+            ))}
+          </div>
+        </motion.div>
+      )}
+
+      {/* Messages */}
+      <div className="flex-1 overflow-y-auto p-3 space-y-3">
+        <AnimatePresence>
+          {filteredMessages.map((msg, i) => (
+            <motion.div
+              key={i}
+              initial={{ opacity: 0, y: 8 }}
+              animate={{ opacity: 1, y: 0 }}
+              className={`flex ${msg.senderId === myUserId ? "justify-end" : "justify-start"}`}
+            >
+              <div
+                className={`max-w-xs px-3 py-2 rounded-lg text-sm break-words ${
+                  msg.senderId === myUserId
+                    ? "bg-primary text-primary-foreground"
+                    : "bg-secondary/60 text-foreground"
+                }`}
+              >
+                {mode === "room" && msg.senderId !== myUserId && (
+                  <p className="text-2xs font-semibold mb-1 opacity-75">
+                    {participants.find(p => p.userId === msg.senderId)?.displayName || "Unknown"}
+                  </p>
                 )}
-                <div
-                  className={`max-w-[85%] px-3 py-2 rounded-2xl text-sm leading-relaxed break-words ${
-                    isMe
-                      ? "bg-primary text-primary-foreground rounded-br-sm"
-                      : "bg-secondary text-foreground rounded-bl-sm"
-                  }`}
-                >
-                  {msg.content}
-                </div>
-                <span className="text-2xs text-muted-foreground/50 font-mono mt-1 px-1">
-                  {formatTime(msg.sentAt)}
-                </span>
-              </motion.div>
-            );
-          })}
+                <p>{msg.content}</p>
+              </div>
+            </motion.div>
+          ))}
         </AnimatePresence>
-        <div ref={bottomRef} />
+        <div ref={messagesEndRef} />
       </div>
 
       {/* Input */}
-      <div className="p-3 border-t border-border flex-shrink-0">
-        <div className="flex items-end gap-2">
-          <textarea
-            ref={inputRef}
+      <div className="flex-shrink-0 p-3 border-t border-border bg-secondary/50">
+        {mode === "private" && !selectedPrivateUser && (
+          <p className="text-2xs text-muted-foreground text-center mb-2">Select a person to chat privately</p>
+        )}
+        <div className="flex gap-2">
+          <input
             value={input}
             onChange={(e) => setInput(e.target.value)}
-            onKeyDown={handleKey}
-            placeholder="Message..."
-            rows={1}
-            className="flex-1 bg-input border border-border rounded-xl px-3 py-2.5 text-sm resize-none outline-none focus:border-primary/60 focus:ring-1 focus:ring-primary/20 transition-all placeholder:text-muted-foreground/40 max-h-28"
-            style={{ lineHeight: "1.5" }}
+            onKeyDown={(e) => e.key === "Enter" && handleSend()}
+            placeholder={mode === "private" && !selectedPrivateUser ? "Select user..." : "Type message..."}
+            disabled={mode === "private" && !selectedPrivateUser}
+            className="flex-1 bg-secondary/80 border border-border rounded-lg px-3 py-2 text-sm placeholder:text-muted-foreground disabled:opacity-50 focus:outline-none focus:ring-2 focus:ring-primary"
           />
-          <motion.button
-            whileTap={{ scale: 0.88 }}
+          <button
             onClick={handleSend}
-            disabled={!input.trim()}
-            className="w-9 h-9 flex-shrink-0 bg-primary rounded-xl flex items-center justify-center hover:opacity-90 transition-all disabled:opacity-30 disabled:cursor-not-allowed"
+            disabled={mode === "private" && !selectedPrivateUser}
+            className="p-2 bg-primary text-primary-foreground rounded-lg hover:opacity-90 transition-opacity disabled:opacity-50"
           >
-            <Send size={13} className="text-primary-foreground" />
-          </motion.button>
+            <Send size={16} />
+          </button>
         </div>
       </div>
     </motion.div>
